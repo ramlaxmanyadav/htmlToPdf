@@ -27,10 +27,10 @@ module HtmlToPdf
 
   def initialize_downloads(pdf_options)
     if pdf_options
-      @name = pdf_options[:title].nil? ? 'test' : pdf_options[:title]
+      @name = pdf_options[:title].nil? ? "#{Time.now.to_i.to_s}" : pdf_options[:title]
       @layout = pdf_options[:layout].nil? ? 'application' : pdf_options[:layout]
     else
-      @name = 'test'
+      @name = "#{Time.now.to_i.to_s}"
     end
   end
 

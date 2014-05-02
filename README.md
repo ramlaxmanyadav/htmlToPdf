@@ -1,6 +1,6 @@
 # HtmlToPdf
 
-TODO: Write a gem description
+Description : this gem will generate pdf of the action's html requested as pdf.
 
 ## Installation
 
@@ -18,12 +18,19 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+write following code inside Application Controller
+   before_filter :html_to_pdf
 
-## Contributing
+in views:
 
-1. Fork it ( https://github.com/[my-github-username]/htmlToPdf/fork )
-2. Create your feature branch (`git checkout -b my-new-feature`)
-3. Commit your changes (`git commit -am 'Add some feature'`)
-4. Push to the branch (`git push origin my-new-feature`)
-5. Create a new Pull Request
+<%= link_to 'download', your_action_path(:format => 'pdf') %>
+
+customizing pdf downloads:
+
+you can customize pdf like you can give the name and layout for the pdf.to customize pdf use this following example:
+
+ <%= link_to 'download', your_action_path(:format => 'pdf') :pdf_options => {title: 'pdf_name', layout: 'layout_name'}) -%>
+
+ # this will generate the pdf of your_action named "pdf_name.pdf" with layout "layout_name".
+
+ one can call any action as pdf and he get the pdf file of that action's html.
