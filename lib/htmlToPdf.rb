@@ -25,7 +25,7 @@ module HtmlToPdf
       lib_path = "#{gem_lib}/wkhtmltopdf"
 
       `#{lib_path} #{_source_file} #{_destination_file}`
-      #File.delete(_source_file) if File.exist?(_source_file)
+      File.delete(_source_file) if File.exist?(_source_file)
       send_data File.open(_destination_file, "rb") { |f| f.read }, :disposition => 'attachment',:filename => "#{@name}.pdf"
       File.delete(_destination_file)
     end

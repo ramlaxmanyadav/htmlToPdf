@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    htmlToPdf (0.0.4)
+    htmlToPdf (0.0.5)
 
 GEM
   remote: https://rubygems.org/
