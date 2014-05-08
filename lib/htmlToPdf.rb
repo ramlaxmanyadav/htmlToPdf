@@ -10,7 +10,12 @@ module HtmlToPdf
       _source_file = File.join(Rails.root, 'tmp', "#{Time.now.to_i.to_s}.html")
       _destination_file = File.join(Rails.root, 'tmp', "#{@name}.pdf")
       _html = render_to_string(:action => "#{action_name}", :formats => 'html', :layout => @layout )
-      file_content = _html.gsub(/\/assets/, "../public/assets")
+      if  File.exists?('../public/assets')
+        file_content = _html.gsub(/\/assets/, "../public/assets")
+      else
+        file_content = _html.gsub(/\/assets/, "../app/assets/stylesheets")
+      end
+
       File.open(_source_file, "w+") do |f|
         f.write(file_content)
       end
@@ -20,7 +25,7 @@ module HtmlToPdf
       lib_path = "#{gem_lib}/wkhtmltopdf"
 
       `#{lib_path} #{_source_file} #{_destination_file}`
-      File.delete(_source_file) if File.exist?(_source_file)
+      #File.delete(_source_file) if File.exist?(_source_file)
       send_data File.open(_destination_file, "rb") { |f| f.read }, :disposition => 'attachment',:filename => "#{@name}.pdf"
       File.delete(_destination_file)
     end
