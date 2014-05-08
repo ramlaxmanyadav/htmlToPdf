@@ -10,8 +10,9 @@ module HtmlToPdf
       _source_file = File.join(Rails.root, 'tmp', "#{Time.now.to_i.to_s}.html")
       _destination_file = File.join(Rails.root, 'tmp', "#{@name}.pdf")
       _html = render_to_string(:action => "#{action_name}", :formats => 'html', :layout => @layout )
+      file_content = _html.gsub(/\/assets/, "../public/assets")
       File.open(_source_file, "w+") do |f|
-        f.write(_html)
+        f.write(file_content)
       end
       spec = Gem::Specification.find_by_name("htmlToPdf")
       gem_root = spec.gem_dir

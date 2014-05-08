@@ -9,7 +9,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Ram Laxman Yadav"]
   spec.email         = ["yadavramlaxman@gmail.com"]
   spec.summary       = %q{html to pdf converter gem}
-  spec.description   = %q{this gem will generate pdf of given html using wkhtmmltopdf}
+  spec.description   = %q{this gem will generate pdf of given html using wkhtmltopdf}
   spec.homepage      = ""
   spec.license       = "MIT"
 
