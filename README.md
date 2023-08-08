@@ -3,6 +3,7 @@
 Description : this gem will generate pdf of the action's html requested as pdf.
 
 ## Installation
+#### Install and setup `wkhtmltopdf`. Please refer (link)[https://wkhtmltopdf.org/] 
 
 Add this line to your application's Gemfile:
 
@@ -20,7 +21,7 @@ Or install it yourself as:
 
 write following code inside Application Controller
 
-    before_filter :html_to_pdf
+    before_action :html_to_pdf
 
 in views:
 
