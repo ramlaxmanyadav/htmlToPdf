@@ -3,7 +3,7 @@
 Description : this gem will generate pdf of the action's html requested as pdf.
 
 ## Installation
-#### Install and setup `wkhtmltopdf`. Please refer (link)[https://wkhtmltopdf.org/] 
+#### Install and setup `wkhtmltopdf`. Please refer https://wkhtmltopdf.org for more details. 
 
 Add this line to your application's Gemfile:
 
