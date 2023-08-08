@@ -18,7 +18,7 @@ module HtmlToPdf
       end
       _assigns.merge!({url: Rails.application.routes.url_helpers})
       
-      _html = render_to_string(template: "posts/#{action_name}", :layout => @layout, locals: _assigns)
+      _html = render_to_string(template: "#{controller_name}/#{action_name}", :layout => @layout, locals: _assigns)
       if  File.exist?('../public/assets')
         file_content = _html.gsub(/\/assets/, "../public/assets")
       else
@@ -32,8 +32,8 @@ module HtmlToPdf
       end
       pdf_options.delete(:title)
       pdf_options.delete(:layout)
-      _pdf_options = pdf_options.each {|key, value| _pdf_options+"--#{key.to_s} #{value} "}
-      system("wkhtmltopdf #{_pdf_options} #{_source_file} #{_destination_file}")
+      # _pdf_options = pdf_options.each {|key, value| _pdf_options+"--#{key.to_s} #{value} "}
+      system("wkhtmltopdf #{_source_file} #{_destination_file}")
       File.delete(_source_file) if File.exist?(_source_file)
       send_data File.open(_destination_file, "rb") { |f| f.read }, :disposition => 'attachment',:filename => "#{@name}.pdf"
       File.delete(_destination_file)
