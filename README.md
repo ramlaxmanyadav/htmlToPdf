@@ -1,6 +1,6 @@
 # HtmlToPdf
 
-Description : this gem will generate pdf of the action's html requested as pdf.
+This gem will generate pdf of the action's html requested as pdf. 
 
 ## Installation
 #### Install and setup `wkhtmltopdf`. Please refer https://wkhtmltopdf.org for more details. 
@@ -36,3 +36,5 @@ you can customize pdf like you can give the name and layout for the pdf.to custo
  this will generate the pdf of your_action named "pdf_name.pdf" with layout "layout_name".
 
  one can call any action as pdf and he get the pdf file of that action's html.
+
+ ##### Make sure you have configured your `asset_host` in application's Rails environment, otherwise assets might not be loaded propertly.
