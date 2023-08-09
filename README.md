@@ -37,4 +37,7 @@ you can customize pdf like you can give the name and layout for the pdf.to custo
 
  one can call any action as pdf and he get the pdf file of that action's html.
 
- ##### Make sure you have configured your `asset_host` in application's Rails environment, otherwise assets might not be loaded propertly.
+ ##### Make sure you have configured your `asset_host` in application's Rails environment, otherwise assets might not be loaded properly.
+
+`config.action_controller.asset_host = "YOUR_ASSETS_HOST"`
+
