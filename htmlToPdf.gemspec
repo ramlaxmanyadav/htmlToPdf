@@ -23,6 +23,7 @@ Gem::Specification.new do |spec|
   spec.metadata["source_code_uri"]   = spec.homepage
   spec.metadata["changelog_uri"]     = "#{spec.homepage}/blob/master/CHANGELOG.md"
   spec.metadata["bug_tracker_uri"]   = "#{spec.homepage}/issues"
+  spec.metadata["documentation_uri"] = "https://ramlaxmanyadav.github.io/htmlToPdf/"
   spec.metadata["rubygems_mfa_required"] = "true"
 
   spec.add_development_dependency "bundler", ">= 2.4", "< 5"
