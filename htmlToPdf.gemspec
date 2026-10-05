@@ -32,5 +32,4 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rspec-rails", "~> 7.0"
   spec.add_development_dependency "combustion", "~> 1.5"
   spec.add_development_dependency "rails", ">= 7.0", "< 9"
-  spec.add_development_dependency "puma", ">= 5.0", "< 7"
 end
