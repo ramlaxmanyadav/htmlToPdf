@@ -1,12 +1,16 @@
+require "active_support/core_ext/object/blank"
+
 module HtmlToPdf
   # Normalizes the Hash passed as pdf_options[:print_options] (plus the
   # default_options configured globally and the :padding shorthand) into the
   # keyword arguments Ferrum::Page#pdf / Chrome's Page.printToPDF expect.
   #
   # Chrome's print options are a fixed, narrow set of layout flags (margins,
-  # paper size, scale, headers/footers) rather than arbitrary CLI arguments,
-  # so this can't be used to inject arbitrary binary flags even when
-  # pdf_options comes from params.
+  # paper size, scale, etc.) rather than arbitrary CLI arguments, so this
+  # can't be used to inject arbitrary binary flags even when pdf_options
+  # comes from params. header_template/footer_template are the one exception
+  # — see TEMPLATE_KEYS below — and are filtered out of request-supplied
+  # options unless explicitly allowed.
   module PrintOptions
     SIZE_KEYS = %i[paper_width paper_height margin_top margin_bottom margin_left margin_right].freeze
 
@@ -27,6 +31,11 @@ module HtmlToPdf
 
     UNIT_TO_INCHES = { 'in' => 1.0, 'cm' => 1 / 2.54, 'mm' => 1 / 25.4, 'px' => 1 / 96.0 }.freeze
 
+    # Raw HTML Chrome renders as-is, unlike every other print option. Only
+    # trusted (config.default_options) by default — see
+    # Configuration#allow_request_templates.
+    TEMPLATE_KEYS = %i[header_template footer_template].freeze
+
     module_function
 
     # Returns [cdp_options, javascript_delay_in_ms]. javascript_delay isn't a
@@ -43,11 +52,12 @@ module HtmlToPdf
     def build(pdf_options)
       defaults = resolve_source(HtmlToPdf.configuration.default_options)
       request_options = resolve_source(pdf_options[:print_options] || {})
+      strip_request_templates!(request_options)
       apply_padding!(request_options, pdf_options[:padding])
 
       options = defaults.merge(request_options)
       convert_sizes!(options)
-      javascript_delay = options.delete(:javascript_delay)
+      javascript_delay = clamp_javascript_delay(options.delete(:javascript_delay))
       [options, javascript_delay]
     end
 
@@ -59,6 +69,18 @@ module HtmlToPdf
 
     def underscore_keys(hash)
       hash.each_with_object({}) { |(key, value), acc| acc[key.to_s.tr('-', '_').to_sym] = value }
+    end
+
+    def strip_request_templates!(request_options)
+      return if HtmlToPdf.configuration.allow_request_templates
+
+      TEMPLATE_KEYS.each { |key| request_options.delete(key) }
+    end
+
+    def clamp_javascript_delay(value)
+      return nil unless value
+
+      [[value.to_i, 0].max, HtmlToPdf.configuration.max_javascript_delay_ms].min
     end
 
     def apply_padding!(options, padding)

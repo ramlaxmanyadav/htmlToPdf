@@ -1,5 +1,6 @@
 require "securerandom"
 require "active_support/concern"
+require "active_support/core_ext/object/blank"
 require "htmlToPdf/version"
 require "htmlToPdf/configuration"
 require "htmlToPdf/browser_pool"

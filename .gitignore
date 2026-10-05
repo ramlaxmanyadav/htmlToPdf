@@ -1,0 +1,9 @@
+/pkg/
+/*.gem
+/.bundle/
+/spec/internal/log/*.log
+/spec/internal/tmp/
+/tmp/
+.DS_Store
+.idea/
+*.swp
