@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [3.0.1] - 2026-11-24
+
+- **Security: patched a batch of transitive dependency CVEs** flagged by GitHub's dependency
+  graph, none of which are in code this gem's own runtime path touches directly — all pulled in
+  through the `rails`/`rspec-rails`/`combustion` dev-dependency chain used to build and test the
+  gem itself. Still bumped because a published gem's `Gemfile.lock` is what `bundle lock
+  --add-platform`/CI resolve against, and a stale lock keeps flagging downstream apps that `bundle
+  install --deployment` against it. Notably `activestorage` 8.1.4 → 8.1.4.1 (CVE-2026-122006,
+  critical) and `actionpack` 8.1.4 → 8.1.4.1 (CVE-2026-126083/126081, high); also `rack` ~> 3.2.9,
+  `nokogiri` ~> 1.19.7, `loofah` ~> 2.25.3, `rails-html-sanitizer` ~> 1.7.2, `addressable` ~> 2.10,
+  and the rest of Rails 8.1 (`actionview`, `actionmailbox`, `activesupport`) to 8.1.4.1.
+- **Security: patched `crass` 1.0.7 → 1.0.8** (CVE-2026-116695, a CSS-sanitizer-bypass via
+  tokenization of malformed URLs) — a `loofah` sub-dependency GitHub's digest didn't surface;
+  caught by adding `bundler-audit` below.
+- Added `bundler-audit` as a dev dependency and a dedicated CI job that runs
+  `bundle exec bundler-audit check --update` against the committed `Gemfile.lock` on every
+  push/PR, plus a weekly Monday-morning cron run so newly-disclosed CVEs against already-locked
+  versions get caught even when nothing in the repo changes.
+
 ## [3.0.0] - 2026-10-05
 
 - **Breaking: replaced the wkhtmltopdf binary dependency with a pooled headless Chrome instance**,
