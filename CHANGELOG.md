@@ -3,6 +3,84 @@
 All notable changes to this project are documented here. Format loosely follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [4.0.0] - 2026-11-24
+
+The headline change: PDFs no longer have to be generated inline, in the request that asked for
+them. `HtmlToPdf.generate_later` renders in the background via ActiveJob, tracks the job's status,
+and can hand the finished PDF off to S3 or ActiveStorage instead of streaming it back — a big
+enough expansion of what this gem does that it gets a major version bump, even though every
+existing synchronous `include HtmlToPdf` / `around_action :html_to_pdf` integration keeps working
+completely unchanged. **Nothing from 3.x needs to change to upgrade** — see "Upgrading from 3.x"
+below.
+
+### Added: background rendering (`HtmlToPdf.generate_later`)
+
+```ruby
+job = HtmlToPdf.generate_later(
+  controller: InvoicesController,
+  action: :show,
+  assigns: { invoice: invoice },
+  pdf_options: { title: "invoice", print_options: { format: "A4" } },
+  store: { adapter: :active_storage, record: invoice, attachment: :pdf },
+  metadata: { invoice_id: invoice.id }
+)
+
+HtmlToPdf::JobStatus.find(job.job_id) # => state/result/error/metadata
+```
+
+- **`HtmlToPdf::GenerateJob`**, a plain `ActiveJob::Base` subclass built entirely on ActiveJob's own
+  public API (`retry_on`/`discard_on`/`queue_as`) — no Sidekiq- or Solid-Queue-specific code
+  anywhere, so it runs under whichever queue adapter the host app configures. Automatic retries on
+  the same transient Chrome errors `BrowserPool` already retries once internally; failed/discarded
+  jobs invoke the new `config.on_job_failure` callback. Required eagerly (guarded on
+  `ActiveJob::Base` already being defined) rather than lazily on first `generate_later` call —
+  found by actually running a background job against a real, separate Solid Queue worker process:
+  a worker that never itself calls `generate_later` still needs the job class defined in *its own*
+  process to perform a job the web process enqueued, and a lazy `require` inside `generate_later`
+  never runs there at all.
+- **`HtmlToPdf::Renderer`**, the piece `generate_later` is built on — renders a controller action to
+  PDF bytes outside of a request, via `ActionController::Renderer` (the same mechanism ActionMailer
+  uses). Requires the new `config.default_url_options`, since there's no real request for it to
+  infer a host from — raises a clear `ArgumentError` if that's unset rather than silently rendering
+  broken asset/route URLs.
+- **`HtmlToPdf::JobStatus`**, tracking a background job's `queued` → `processing` →
+  `completed`/`failed` lifecycle in `config.job_status_store` (default: a `Rails.cache`-backed
+  `CacheStore`, swappable for a custom store), so a different process than the one running the job
+  — e.g. the web process a user is polling from — can read it.
+- **`HtmlToPdf::Storage`**, pluggable PDF storage with two adapters shipped:
+  - `:active_storage` — attaches to any ActiveRecord `has_one_attached`/`has_many_attached`, via
+    whatever service `config/storage.yml` already points at (disk, S3, GCS, ...).
+  - `:s3` — direct upload via `aws-sdk-s3`, for apps that don't use ActiveStorage and just want a
+    plain bucket/key/URL back. **A true optional dependency — this gem does not depend on
+    `aws-sdk-s3`**; add it to your own Gemfile to use `:s3`.
+  - Register your own with `HtmlToPdf::Storage.register(:name, AdapterClass)`.
+- **`config.max_concurrent_renders`** (default `nil`, unbounded — unchanged behavior) — caps how
+  many conversions may run against the shared `BrowserPool` browser at once, via the new
+  `HtmlToPdf::ConcurrencyLimiter`. Applies to the synchronous controller path too, not just jobs,
+  since both funnel through the same one Chrome process per Ruby process.
+- New config: `config.job_status_store`, `config.job_status_ttl`, `config.job_queue_name`,
+  `config.on_job_success`, `config.on_job_failure`, `config.default_url_options`,
+  `config.s3_bucket`, `config.s3_client_options`.
+
+### Changed (internal, non-breaking)
+
+- Extracted the "write HTML to a temp file, convert via `BrowserPool`, clean up" logic (previously
+  inlined in `html_to_pdf`) into `HtmlToPdf::Converter`, shared by both the synchronous controller
+  path and `HtmlToPdf::Renderer` — no behavior change to the synchronous path, just one copy of the
+  logic instead of two.
+
+### Upgrading from 3.x
+
+Nothing to do. Every new piece is additive, defaults to today's exact behavior (unbounded
+concurrency, no background store, etc.), and the synchronous path's code, options, and security
+model (see [Security](docs/security.md)) are untouched. Adopt `HtmlToPdf.generate_later` wherever
+and whenever it's useful — the two paths compose freely in the same app.
+
+See [Background PDF generation](docs/background-jobs.md) for the full write-up, including why
+retry `attempts`/`wait` are fixed rather than a `HtmlToPdf.configure` option (a class-definition-
+time-vs-initializer-load-order hazard, explained there), the cross-process cache-visibility caveat
+for job status in production, and a detailed look at each storage adapter.
+
 ## [3.0.1] - 2026-11-24
 
 - **Security: patched a batch of transitive dependency CVEs** flagged by GitHub's dependency

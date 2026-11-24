@@ -5,9 +5,72 @@ require "htmlToPdf/version"
 require "htmlToPdf/configuration"
 require "htmlToPdf/browser_pool"
 require "htmlToPdf/print_options"
+require "htmlToPdf/converter"
+require "htmlToPdf/renderer"
+require "htmlToPdf/storage"
+require "htmlToPdf/job_status"
+
+# Defined eagerly (not lazily inside HtmlToPdf.generate_later) specifically
+# so a separate worker process (a Sidekiq/Solid Queue process that never
+# itself calls generate_later, only performs jobs the web process enqueued)
+# has the class available too — ActiveJob resolves a job by class *name* at
+# perform time, in whatever process that happens to be, and that process's
+# own boot never otherwise touches this gem's generate_later method. Guarded
+# on ActiveJob::Base being defined already (true for any ordinary Rails app
+# by the time Bundler.require reaches this gem) so an app generated with
+# --skip-active-job still boots — HtmlToPdf.generate_later itself raises a
+# clear error in that case instead.
+require "htmlToPdf/generate_job" if defined?(ActiveJob::Base)
 
 module HtmlToPdf
   extend ActiveSupport::Concern
+
+  class << self
+    # Enqueues HtmlToPdf::GenerateJob — the background-rendering counterpart
+    # to the synchronous `include HtmlToPdf` / around_action path, for PDFs
+    # slow enough that a caller shouldn't hold a connection open for them, or
+    # that should end up in storage (S3/ActiveStorage) rather than streamed
+    # back directly. See docs/background-jobs.md.
+    #
+    # controller: a controller Class (or its String name). action: Symbol/
+    # String. assigns: ivars the view needs (AR objects pass through fine —
+    # ActiveJob serializes them via GlobalID). pdf_options: same shape as the
+    # synchronous path's pdf_options. store: optional, e.g.
+    # { adapter: :active_storage, record:, attachment: } or
+    # { adapter: :s3, key: } — see HtmlToPdf::Storage. metadata: optional,
+    # arbitrary serializable data surfaced on the JobStatus record and handed
+    # to config.on_job_success/on_job_failure.
+    #
+    # Returns the enqueued HtmlToPdf::GenerateJob (ActiveJob::Base#job_id,
+    # etc.). Immediately writes a "queued" HtmlToPdf::JobStatus for that
+    # job_id, readable via HtmlToPdf::JobStatus.find.
+    def generate_later(controller:, action:, assigns: {}, pdf_options: {}, store: nil, metadata: {})
+      unless defined?(ActiveJob::Base)
+        raise LoadError,
+              "ActiveJob isn't loaded — HtmlToPdf.generate_later needs it. If this app was " \
+              "generated with --skip-active-job, either undo that or call " \
+              "HtmlToPdf::Renderer.render + HtmlToPdf::Storage.store directly instead (the " \
+              "synchronous building blocks generate_later is built from)."
+      end
+
+      require "htmlToPdf/generate_job"
+
+      # Built via .new + #enqueue (what .perform_later does internally)
+      # rather than .perform_later directly, so the "queued" status below is
+      # written *before* the job can possibly run — some queue adapters
+      # (:inline, or the :test adapter under perform_enqueued_jobs) execute
+      # the job synchronously as part of enqueuing it, and writing "queued"
+      # afterwards would then clobber a "completed"/"failed" status that
+      # already landed.
+      job = GenerateJob.new(
+        controller: controller, action: action, assigns: assigns,
+        pdf_options: pdf_options, store: store, metadata: metadata
+      )
+      JobStatus.new(job.job_id, metadata: metadata).queued!
+      job.enqueue
+      job
+    end
+  end
 
   # Wire up with `include HtmlToPdf` then `around_action :html_to_pdf` (not
   # `before_action`) in the controller(s) that should support it — typically
@@ -40,18 +103,7 @@ module HtmlToPdf
     end
 
     html = render_to_string(template: "#{controller_name}/#{action_name}", layout: @layout, locals: { url: Rails.application.routes.url_helpers })
-    file_content = html.gsub(/\\&quot;/, "")
-
-    tmp_dir = HtmlToPdf.configuration.tmp_dir || File.join(Rails.root, 'tmp')
-    FileUtils.mkdir_p(tmp_dir)
-    source_file = File.join(tmp_dir, "#{Time.now.to_i}_#{SecureRandom.hex(8)}.html")
-    File.write(source_file, file_content)
-
-    begin
-      pdf_bytes = render_pdf(source_file)
-    ensure
-      File.delete(source_file) if File.exist?(source_file)
-    end
+    pdf_bytes = HtmlToPdf::Converter.convert(html, print_options: @print_options, javascript_delay: @javascript_delay)
 
     deliver_pdf(pdf_bytes)
   end
@@ -72,11 +124,7 @@ module HtmlToPdf
   # markup directly) gives relative asset paths a real base URI to resolve
   # against, matching how a browser would load the page.
   def render_pdf(source_file)
-    HtmlToPdf::BrowserPool.with_page do |page|
-      page.go_to("file://#{source_file}")
-      sleep(@javascript_delay / 1000.0) if @javascript_delay.to_i.positive?
-      page.pdf(encoding: :binary, **(@print_options || {}))
-    end
+    HtmlToPdf::Converter.render_pdf(source_file, print_options: @print_options, javascript_delay: @javascript_delay)
   end
 
   private

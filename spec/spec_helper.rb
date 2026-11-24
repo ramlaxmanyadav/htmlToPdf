@@ -1,16 +1,22 @@
 require "combustion"
-Combustion.initialize! :action_controller, :action_view
+Combustion.initialize! :action_controller, :action_view, :active_record, :active_job, :active_storage
 
 require "rspec/rails"
+require "active_job/test_helper"
 require "htmlToPdf"
+
+ActiveJob::Base.queue_adapter = :test
 
 RSpec.configure do |config|
   config.expect_with :rspec do |c|
     c.syntax = :expect
   end
 
+  config.include ActiveJob::TestHelper
+
   config.before do
     HtmlToPdf.reset_configuration!
+    HtmlToPdf::ConcurrencyLimiter.reset!
   end
 
   # Specs tagged :chrome exercise a real headless Chrome/Chromium process.

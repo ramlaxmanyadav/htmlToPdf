@@ -1,4 +1,5 @@
 require "ferrum"
+require "htmlToPdf/concurrency_limiter"
 
 module HtmlToPdf
   # Keeps a single headless Chrome process alive per Ruby process (starting
@@ -19,18 +20,20 @@ module HtmlToPdf
     module_function
 
     def with_page
-      attempts = 0
-      begin
-        attempts += 1
-        # The block form is required: it's the only way Ferrum disposes the
-        # browser context afterward. Closing just the page (as a bare
-        # `create_page(new_context: true)` + `page.close` would) leaks a
-        # context per call, which adds up fast in a long-lived pooled browser.
-        browser.create_page(new_context: true) { |page| yield page }
-      rescue *RECOVERABLE_ERRORS
-        reset!
-        retry if attempts < 2
-        raise
+      ConcurrencyLimiter.around do
+        attempts = 0
+        begin
+          attempts += 1
+          # The block form is required: it's the only way Ferrum disposes the
+          # browser context afterward. Closing just the page (as a bare
+          # `create_page(new_context: true)` + `page.close` would) leaks a
+          # context per call, which adds up fast in a long-lived pooled browser.
+          browser.create_page(new_context: true) { |page| yield page }
+        rescue *RECOVERABLE_ERRORS
+          reset!
+          retry if attempts < 2
+          raise
+        end
       end
     end
 

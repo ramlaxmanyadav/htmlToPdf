@@ -3,6 +3,7 @@
 /.bundle/
 /spec/internal/log/*.log
 /spec/internal/tmp/
+/spec/internal/db/*.sqlite
 /tmp/
 .DS_Store
 .idea/

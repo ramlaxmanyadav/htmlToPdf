@@ -6,7 +6,9 @@
 
 Turn any Rails controller action into a downloadable PDF, rendered exactly as the browser would
 render it — real CSS, real layout, real fonts — via a pooled headless Chrome instance instead of
-an abandoned wkhtmltopdf binary.
+an abandoned wkhtmltopdf binary. Generate it inline in the request, or hand it off to a background
+job (ActiveJob — Sidekiq, Solid Queue, or any adapter) with job status tracking and S3/ActiveStorage
+storage — see [Background rendering](#background-rendering) below.
 
 Supports Rails 7.x and Rails 8.x (latest).
 
@@ -19,6 +21,8 @@ Renders through a pooled headless Chrome instance (via the [ferrum](https://gith
 - [HtmlToPdf in Rails](docs/rails-integration.md) — callback ordering, custom layouts, Chrome in
   Docker, and the `asset_host` gotcha that leaves a PDF unstyled if you miss it.
 - [Security](docs/security.md) — exactly what's safe to expose on a public action and what isn't.
+- [Background PDF generation](docs/background-jobs.md) — `HtmlToPdf.generate_later`, ActiveJob/
+  Sidekiq/Solid Queue, retries, job status tracking, and S3/ActiveStorage storage.
 - [Contributing & Releasing](docs/contributing.md) — running the test suite, extending the gem.
 - Longer-form guides on the [docs site](https://ramlaxmanyadav.github.io/htmlToPdf/):
   - [Headless Chrome vs. wkhtmltopdf for Rails PDF generation](https://ramlaxmanyadav.github.io/htmlToPdf/headless-chrome-vs-wkhtmltopdf.html)
@@ -102,6 +106,25 @@ customizing page padding and print options:
 
  ##### Security note: `pdf_options` is read from the request's query params. `print_options` is a fixed, narrow set of PDF layout flags (margins, paper size, etc.) rather than arbitrary CLI arguments forwarded to a subprocess, so it can't be used to inject arbitrary binary flags — `header_template`/`footer_template` are the one exception (raw HTML Chrome renders as-is) and are filtered out of request-supplied options by default. Still, only expose the pdf format on actions where letting a caller tweak layout/margins is acceptable, or filter `pdf_options` yourself before it reaches `html_to_pdf` (e.g. in a `before_action` that runs earlier). Full detail in [Security](docs/security.md).
 
+## Background rendering
+
+For PDFs slow enough that a caller shouldn't hold a connection open for them, or that should end
+up in storage rather than streamed back directly, `HtmlToPdf.generate_later` enqueues an ActiveJob
+job (Sidekiq/Solid Queue compatible, automatic retries, job status tracking, S3/ActiveStorage
+storage, configurable concurrency, failure callbacks):
+
+    HtmlToPdf.generate_later(
+      controller: InvoicesController,
+      action: :show,
+      assigns: { invoice: invoice },
+      pdf_options: { title: 'invoice', print_options: { format: 'A4' } },
+      store: { adapter: :active_storage, record: invoice, attachment: :pdf }
+    )
+
+See [Background PDF generation](docs/background-jobs.md) for the required one-time setup
+(`config.default_url_options`), the full `HtmlToPdf::JobStatus`/`HtmlToPdf::Storage` API, and how
+retries/concurrency/failure callbacks work.
+
 ## Configuration
 
 Set gem-wide defaults in an initializer (e.g. `config/initializers/html_to_pdf.rb`):
@@ -146,6 +169,28 @@ Set gem-wide defaults in an initializer (e.g. `config/initializers/html_to_pdf.r
       # caller can't stall the shared browser pool for everyone. Defaults
       # to 10_000.
       # config.max_javascript_delay_ms = 10_000
+
+      # Required to use HtmlToPdf.generate_later (background rendering) —
+      # there's no request to infer a host from in a job. These are
+      # ActionController::Renderer's env keys (http_host/https), not
+      # config.action_mailer.default_url_options's (host/protocol). See
+      # docs/background-jobs.md.
+      # config.default_url_options = { http_host: "app.example.com", https: true }
+
+      # Caps how many conversions may run against the shared browser at
+      # once (nil, the default, means unbounded). See docs/background-jobs.md.
+      # config.max_concurrent_renders = 10
+
+      # Defaults consumed by HtmlToPdf::Storage::S3Adapter. Leave
+      # credentials out and let the AWS SDK's default credential chain (an
+      # instance/task IAM role) resolve them.
+      # config.s3_bucket = "my-bucket"
+      # config.s3_client_options = { region: "us-east-1" }
+
+      # Called after a background job completes/fails for good. See
+      # docs/background-jobs.md.
+      # config.on_job_success = ->(status) { ... }
+      # config.on_job_failure = ->(status, error) { ... }
     end
 
 A single headless Chrome process is started lazily and reused across requests in the same Ruby process (each conversion gets its own isolated browser context), since launching Chrome per-request is comparatively expensive. It's restarted automatically if Chrome crashes or stops responding. See [Architecture](docs/architecture.md#browserpool) for the design and its scaling limits.

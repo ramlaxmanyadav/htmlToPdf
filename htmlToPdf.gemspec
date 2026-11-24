@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.version       = HtmlToPdf::VERSION
   spec.authors       = ["Ram Laxman Yadav"]
   spec.email         = ["yadavramlaxman@gmail.com"]
-  spec.summary       = %q{Render Rails controller actions to PDF using headless Chrome}
-  spec.description   = %q{HtmlToPdf lets any Rails controller action be downloaded as a PDF. Request the action with a PDF format and the gem renders the view exactly as the browser would, then converts it to PDF via a pooled headless Chrome instance (through the ferrum gem). Supports Rails 7.x and 8.x.}
+  spec.summary       = %q{Render Rails controller actions to PDF, synchronously or in the background, using headless Chrome}
+  spec.description   = %q{HtmlToPdf lets any Rails controller action be downloaded as a PDF. Request the action with a PDF format and the gem renders the view exactly as the browser would, then converts it to PDF via a pooled headless Chrome instance (through the ferrum gem) — synchronously, in-request, or in the background via HtmlToPdf.generate_later (ActiveJob, so it runs under Sidekiq/Solid Queue/any adapter), with job status tracking and S3/ActiveStorage storage. Supports Rails 7.x and 8.x.}
   spec.homepage      = "https://github.com/ramlaxmanyadav/htmlToPdf"
   spec.license       = "MIT"
   spec.required_ruby_version = ">= 3.1"
@@ -33,4 +33,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "combustion", "~> 1.5"
   spec.add_development_dependency "rails", ">= 7.0", "< 9"
   spec.add_development_dependency "bundler-audit", "~> 0.9"
+  spec.add_development_dependency "aws-sdk-s3", "~> 1.0"
+  spec.add_development_dependency "sqlite3", "~> 2.0"
 end
